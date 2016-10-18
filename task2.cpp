@@ -210,7 +210,7 @@ vector<float> ComputeHistogram(const BinImage & direct, const BinImage &module) 
 		double sum = 0;
 		for (int i = 0; i < 8; i ++)
 			sum += bins[i]*bins[i];
-		if (sum == 0){
+		if (sum <= 0){
 			for (int i = 0; i <8 ; i ++)
 				hist.push_back(0);
 			return hist;
@@ -223,23 +223,26 @@ vector<float> ComputeHistogram(const BinImage & direct, const BinImage &module) 
 }
 
 
-vector <float> LBP (BinImage img){
+vector <float> LBP (BinImage image){
 	int dec, mass[256];
+	for(int i = 0; i < 256; i ++)
+		mass[i] = 0;
 	int bins[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-	for (int i = 1; i < img.n_rows-1; i ++){
-		for (int j = 1; j < img.n_cols-1; j ++){
+	BinImage img = ExtendImage(image,1);
+	for (uint i = 1; i < img.n_rows-1; i ++){
+		for (uint j = 1; j < img.n_cols-1; j ++){
 			bins[0] = img(i-1,j-1) >= img(i,j);
 			bins[1] = img(i-1, j)  >= img(i,j);
 			bins[2] = img(i-1,j+1) >= img(i,j);
-			bins[3] = img(i, j-1)  >= img(i,j);
-			bins[4] = img(i, j+1)  >= img(i,j);
-			bins[5] = img(i+1,j-1) >= img(i,j);
-			bins[6] = img(i+1, j)  >= img(i,j);
-			bins[7] = img(i+1,j+1) >= img(i,j);
+			bins[3] = img(i, j+1)  >= img(i,j);
+			bins[4] = img(i+1, j+1)  >= img(i,j);
+			bins[5] = img(i+1,j) >= img(i,j);
+			bins[6] = img(i+1, j-1)  >= img(i,j);
+			bins[7] = img(i,j-1) >= img(i,j);
 			
 			dec = bins[7] + bins[6] * 2 + bins[5]*4 + bins[4]*8 + bins[3]*16+
 					bins[2]*32 + bins[1]*64 + bins[0]*128;
-					cout<<"dec"<<dec<<endl;
+					//cout<<"dec"<<dec<<endl;
 			mass[dec] ++;
 		}
 	}
@@ -248,18 +251,22 @@ vector <float> LBP (BinImage img){
 		sum += mass[i] * mass[i];
 	
 	vector <float> hist;
-	if (sum == 0){
+	if (sum <= 0){
 		for (int i = 0; i <256 ; i ++)
 			hist.push_back(0);
 		return hist;
 	}
+	sum = sqrt(sum);
 	for (int i = 0; i < 256; i ++)
 		hist.push_back(mass[i]/sum);
+		
+	//for (std::vector<float>::const_iterator i = hist.begin(); i != hist.end(); ++i)
+		//		cout << *i << ' '; 
 	return hist;
 }
 Image BitmapToRgb (BMP *bitmap){
 	Image result (GetHeight(bitmap), GetWidth(bitmap));
-	double s = 0;
+	
 	for (uint i = 0; i < result.n_rows; i ++)
 		for (uint j = 0; j < result.n_cols; j ++){
 			RGBApixel pixel = bitmap->GetPixel(j,i);
@@ -277,13 +284,13 @@ Image Resize(Image img, float size_x, float size_y){
 	float scale_col = float(img.n_cols) / float(size_x);
 	//cout<<scale_col<<" "<<scale_row<<endl;
 	//cout<<scale_row<<endl;
-	int k=1, l=1;
+	uint k=1, l=1;
 	float kk = 1, ll = 1;
-	for (int i = 1; i< rescaled.n_rows ; i ++){
-		for (int j =1;  j < rescaled.n_cols; j ++){
+	for (uint i = 1; i< rescaled.n_rows ; i ++){
+		for (uint j =1;  j < rescaled.n_cols; j ++){
 			get<0>(rescaled(i,j)) = (get<0>(img(k,l)) + get<0>(img(k+1,l)) + get<0>(img(k,l+1)) + get<0>(img(k+1,l+1))) / 4;
-			get<0>(rescaled(i,j)) = (get<1>(img(k,l)) + get<1>(img(k+1,l)) + get<1>(img(k,l+1)) + get<1>(img(k+1,l+1))) / 4;
-			get<0>(rescaled(i,j)) = (get<2>(img(k,l)) + get<2>(img(k+1,l)) + get<2>(img(k,l+1)) + get<2>(img(k+1,l+1))) / 4;
+			get<1>(rescaled(i,j)) = (get<1>(img(k,l)) + get<1>(img(k+1,l)) + get<1>(img(k,l+1)) + get<1>(img(k+1,l+1))) / 4;
+			get<2>(rescaled(i,j)) = (get<2>(img(k,l)) + get<2>(img(k+1,l)) + get<2>(img(k,l+1)) + get<2>(img(k+1,l+1))) / 4;
 			ll += scale_col;
 			l = static_cast<int>(ll);
 			if ((l+1 )>=img.n_cols) break;
@@ -299,8 +306,8 @@ Image Resize(Image img, float size_x, float size_y){
 }
 void CalculateMean(Image img, float *m){
 	float m_r = 0, m_g = 0, m_b = 0;
-	for (int i = 0; i < img.n_rows; i ++)
-		for (int j = 0; j < img.n_cols; j ++){
+	for (uint i = 0; i < img.n_rows; i ++)
+		for (uint j = 0; j < img.n_cols; j ++){
 			m_r += get<0>(img(i,j));
 			m_g += get<1>(img(i,j));
 			m_b += get<2>(img(i,j));
@@ -308,23 +315,31 @@ void CalculateMean(Image img, float *m){
 	m_r /= (img.n_rows * img.n_cols);
 	m_g /= (img.n_rows * img.n_cols);
 	m_b /= (img.n_rows * img.n_cols);
+	m[0] = m_r;
+	m[1] = m_g;
+	m[2] = m_b;
+//	cout<<m[0]<<" "<<m[1]<<" "<<m[2]<<endl;
 }
 vector <float> ColorFeatures (Image img){
 	int sq_size_r = img.n_rows / 8;
 	int sq_size_c = img.n_cols / 8;
 	vector <float> map;
 	float mean_colors[3] = {0,0,0};
-	for (int i = 0; i < img.n_rows - sq_size_r; i += sq_size_r){
-		for (int j = 0; j < img.n_cols - sq_size_c; j += sq_size_c){
+	for (uint i = 0; i < img.n_rows - sq_size_r; i += sq_size_r){
+		for (uint j = 0; j < img.n_cols - sq_size_c; j += sq_size_c){
 			CalculateMean (img.submatrix(i,j, sq_size_r, sq_size_c), mean_colors);
 			mean_colors[0] /= 255;
 			mean_colors[1] /= 255;
 			mean_colors[2] /= 255;
+			//cout<<mean_colors[0]<<" "<<mean_colors[1]<<" "<<mean_colors[2]<<endl;
 			map.push_back(mean_colors[0]);
 			map.push_back(mean_colors[1]);
 			map.push_back(mean_colors[2]);
 		}
 	}
+	//for (std::vector<float>::const_iterator i = map.begin(); i != map.end(); ++i)
+		//		cout << *i << ' '; 
+	//cout<<endl;
 	return map;
 }
 // Exatract features from dataset.
@@ -354,38 +369,25 @@ void ExtractFeatures(const TDataSet& data_set, TFeatures* features) {
 				module_gradient(i, j) = sqrt (color1*color1 + color2*color2);
 				gradient_direction(i, j) = atan2(color2, color1); 
 			}
-			Image save(gray.n_rows, gray.n_cols);
-			for (int i = 0; i < gray.n_rows; i ++)
-				for (int j = 0; j < gray.n_cols; j ++){
-	
-				get<0>(save(i,j)) = module_gradient(i,j);
-				get<1>(save(i,j)) = module_gradient(i,j);
-				get<2>(save(i,j)) = module_gradient(i,j);
-			}
-	save_image(save, "resc.bmp");
+			
 		//32 - size of a square for computing a histogram 
 		int sq_size = 4;
-		int dx = gray.n_rows - sq_size;
-		int dy = gray.n_cols - sq_size;
 		
         vector<float> one_image_features;
         //vector <float> hist;
-        for (int i = 0; i < gray.n_rows - sq_size ; i += sq_size)
-			for (int j = 0; j < gray.n_cols - sq_size; j += sq_size){
+        for (uint i = 0; i < gray.n_rows - sq_size ; i += sq_size){
+			for (uint j = 0; j < gray.n_cols - sq_size; j += sq_size){
 				vector <float> hist = ComputeHistogram(gradient_direction.submatrix(i,j, sq_size, sq_size), module_gradient.submatrix(i,j,sq_size, sq_size));
-				//vector <float> lbp_hist = LBP(Ext.submatrix(i, j, sq_size, sq_size));
+				vector <float> lbp_hist = LBP(gray.submatrix(i, j, sq_size, sq_size));
 				for (int k = 0; k < 8 ; k ++){
 					one_image_features.push_back(hist.back());
 					
 					hist.pop_back();
 				}
 				one_image_features.insert(one_image_features.end(), color_map.begin(), color_map.end());
-				/*
-				for (int k = 0; k < 8 ; k ++){
-					one_image_features.push_back(lbp_hist.back());
-					
-					lbp_hist.pop_back();
-				}*/
+				//one_image_features.insert(one_image_features.end(), lbp_hist.begin(), lbp_hist.end());
+				
+				}
 			//cout<<i<<j<<endl;
 			}
 			//for (std::vector<float>::const_iterator i = one_image_features.begin(); i != one_image_features.end(); ++i)

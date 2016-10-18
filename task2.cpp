@@ -90,7 +90,7 @@ template<typename T, typename V, typename W>
 inline T clamp(T value, V bottom, W top) {
     return std::max(bottom, std::min(top,value));
 }
-BinImage ExtendImage(BinImage &bmp, uint len) {
+/*BinImage ExtendImage(BinImage &bmp, uint len) {
     BinImage result(bmp.n_rows + len * 2, bmp.n_cols + 2 * len);
     for (uint i = 0; i < result.n_rows; ++i) {
         for (uint j = 0; j < result.n_cols; ++j) {
@@ -99,7 +99,20 @@ BinImage ExtendImage(BinImage &bmp, uint len) {
     }
     return result.deep_copy();
 }
-
+*/
+BinImage ExtendImage(BinImage &bmp, uint len){
+	BinImage result(bmp.n_rows + len*2, bmp.n_cols + len*2);
+	for (uint i = 0 ; i < result.n_rows ; i ++)
+		for (uint j = 0; j < result.n_cols; j ++)
+			result(i,j) = 0;
+	for (uint i = 0 ; i < bmp.n_rows ; i ++)
+		for (uint j = 0; j < bmp.n_cols; j ++)
+			result(i+1,j+1) = bmp(i,j);
+	//for (uint i = 1; i < result.n_rows; i ++)
+		//result(i,0) = img(i, 1);
+//	result(0,0) = img(1,1);
+	return result;
+}
 BinImage Grayscale(Image rgb){
 	BinImage result (rgb.n_rows, rgb.n_cols);
 	double s = 0;
@@ -224,44 +237,65 @@ vector<float> ComputeHistogram(const BinImage & direct, const BinImage &module) 
 
 
 vector <float> LBP (BinImage image){
-	int dec, mass[256];
+	int dec;
+	float  mass[256];
 	for(int i = 0; i < 256; i ++)
 		mass[i] = 0;
 	int bins[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 	BinImage img = ExtendImage(image,1);
+	
+	/*for (uint i = 0; i < img.n_rows; i ++){
+		for (uint j = 0; j < img.n_cols; j ++)
+				cout<< img(i,j)<<" ";
+			cout<<endl;
+		}
+	*/
+	
+	//cout<<img.n_rows<<" "<<img.n_cols<<endl;
 	for (uint i = 1; i < img.n_rows-1; i ++){
 		for (uint j = 1; j < img.n_cols-1; j ++){
-			bins[0] = img(i-1,j-1) >= img(i,j);
-			bins[1] = img(i-1, j)  >= img(i,j);
-			bins[2] = img(i-1,j+1) >= img(i,j);
-			bins[3] = img(i, j+1)  >= img(i,j);
-			bins[4] = img(i+1, j+1)  >= img(i,j);
-			bins[5] = img(i+1,j) >= img(i,j);
-			bins[6] = img(i+1, j-1)  >= img(i,j);
-			bins[7] = img(i,j-1) >= img(i,j);
-			
+			bins[0] = img(i-1,j-1) >= img(i,j) ? 1: 0;
+			bins[1] = img(i-1, j)  >= img(i,j)? 1:0;
+			bins[2] = img(i-1,j+1) >= img(i,j)? 1:0;
+			bins[3] = img(i, j+1)  >= img(i,j)? 1:0;
+			bins[4] = img(i+1, j+1)  >= img(i,j)?1:0;
+			bins[5] = img(i+1,j) >= img(i,j)? 1:0;
+			bins[6] = img(i+1, j-1)  >= img(i,j)? 1:0;
+			bins[7] = img(i,j-1) >= img(i,j)? 1:0;
 			dec = bins[7] + bins[6] * 2 + bins[5]*4 + bins[4]*8 + bins[3]*16+
 					bins[2]*32 + bins[1]*64 + bins[0]*128;
-					//cout<<"dec"<<dec<<endl;
+			//for (int k = 0; k < 8; k ++)
+				//cout<<bins[k];
+			//cout<<" "<<i<<" "<<j;
+			//cout<<endl;
 			mass[dec] ++;
 		}
 	}
-	int sum = 0;
-	for (int i = 0; i < 256; i ++)
-		sum += mass[i] * mass[i];
-	
+	//float sum = 0;
+	//for (int i = 0; i < 256; i ++)
+		//sum += mass[i] * mass[i];
+	//cout<<sum<<endl;
+	//sum = sqrt(sum);
+	float sum =  1;
 	vector <float> hist;
 	if (sum <= 0){
 		for (int i = 0; i <256 ; i ++)
 			hist.push_back(0);
 		return hist;
 	}
-	sum = sqrt(sum);
-	for (int i = 0; i < 256; i ++)
+	
+	for (int i = 0; i < 256; i ++){
+	//	cout<<mass[i]/sum<<" ";
 		hist.push_back(mass[i]/sum);
-		
+	}
+	/*
+	for (int i =0 ; i < 256; i ++)
+		if (mass[i] >= 1)
+			cout<<i<<" ";
+	cout<<endl;*/
 	//for (std::vector<float>::const_iterator i = hist.begin(); i != hist.end(); ++i)
 		//		cout << *i << ' '; 
+	//cout<<endl<<endl;
 	return hist;
 }
 Image BitmapToRgb (BMP *bitmap){
@@ -372,27 +406,36 @@ void ExtractFeatures(const TDataSet& data_set, TFeatures* features) {
 			
 		//32 - size of a square for computing a histogram 
 		int sq_size = 4;
-		
+		vector<float>lbp_hist_full;
         vector<float> one_image_features;
+        vector <float> full_hist;
+        vector <float> hist;
+        vector<float>lbp_hist;
         //vector <float> hist;
         for (uint i = 0; i < gray.n_rows - sq_size ; i += sq_size){
 			for (uint j = 0; j < gray.n_cols - sq_size; j += sq_size){
-				vector <float> hist = ComputeHistogram(gradient_direction.submatrix(i,j, sq_size, sq_size), module_gradient.submatrix(i,j,sq_size, sq_size));
-				vector <float> lbp_hist = LBP(gray.submatrix(i, j, sq_size, sq_size));
-				for (int k = 0; k < 8 ; k ++){
-					one_image_features.push_back(hist.back());
-					
-					hist.pop_back();
-				}
-				one_image_features.insert(one_image_features.end(), color_map.begin(), color_map.end());
-				//one_image_features.insert(one_image_features.end(), lbp_hist.begin(), lbp_hist.end());
-				
+				hist = ComputeHistogram(gradient_direction.submatrix(i,j, sq_size, sq_size), module_gradient.submatrix(i,j,sq_size, sq_size));
+				//lbp_hist = LBP(gray.submatrix(i, j, sq_size, sq_size));
+				//one_image_features.insert(one_image_features.end(), hist.begin(), hist.end());
+				//lbp_hist_full.insert(lbp_hist_full.end(), lbp_hist.begin(), lbp_hist.end());
+				full_hist.insert( full_hist.end(),hist.begin(), hist.end());
 				}
 			//cout<<i<<j<<endl;
 			}
-			//for (std::vector<float>::const_iterator i = one_image_features.begin(); i != one_image_features.end(); ++i)
-				//cout << *i << ' '; 
-			//cout<<endl<<"new image"<<endl;
+			sq_size = 8;
+			  for (uint i = 0; i < gray.n_rows - sq_size ; i += sq_size){
+					for (uint j = 0; j < gray.n_cols - sq_size; j += sq_size){
+						lbp_hist = LBP(gray.submatrix(i, j, sq_size, sq_size));
+						lbp_hist_full.insert(lbp_hist_full.end(), lbp_hist.begin(), lbp_hist.end());
+					}
+			}
+			cout<<full_hist.size()<<endl;
+			one_image_features.insert(one_image_features.end(), full_hist.begin(), full_hist.end());
+			one_image_features.insert(one_image_features.end(), lbp_hist_full.begin(), lbp_hist_full.end());
+			one_image_features.insert(one_image_features.end(), color_map.begin(), color_map.end());
+			cout<<one_image_features.size()<<endl;
+			
+		
         features->push_back(make_pair(one_image_features, data_set[image_idx].second));
         // End of sample code
 

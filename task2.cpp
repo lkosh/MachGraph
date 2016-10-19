@@ -185,7 +185,7 @@ vector<float> ComputeHistogram(const BinImage & direct, const BinImage &module) 
 	float bins[8] = {0,0,0,0,0,0,0,0};
 	for (uint i = 0; i < direct.n_rows; i ++)
 		for (uint j = 0; j < direct.n_cols; j ++){
-			double gradient_dir = direct(i, j) / M_PI;
+			double gradient_dir = direct(i, j) / 3.14;
 			
 			if (7.0/8 > gradient_dir && gradient_dir >= 5.0/8)
 			{
@@ -236,7 +236,7 @@ vector<float> ComputeHistogram(const BinImage & direct, const BinImage &module) 
 }
 
 
-vector <float> LBP (BinImage image){
+vector <float> LBP (BinImage &image){
 	int dec;
 	float  mass[256];
 	for(int i = 0; i < 256; i ++)
@@ -312,7 +312,7 @@ Image BitmapToRgb (BMP *bitmap){
 		}
 	return result.deep_copy();
 }
-Image Resize(Image img, float size_x, float size_y){
+Image Resize(Image &img, float size_x, float size_y){
 	Image rescaled(size_y, size_x);
 	float scale_row = float(img.n_rows) / float(size_y);
 	float scale_col = float(img.n_cols) / float(size_x);
@@ -338,7 +338,7 @@ Image Resize(Image img, float size_x, float size_y){
 
 	return rescaled.deep_copy();
 }
-void CalculateMean(Image img, float *m){
+void CalculateMean(Image &img, float *m){
 	float m_r = 0, m_g = 0, m_b = 0;
 	for (uint i = 0; i < img.n_rows; i ++)
 		for (uint j = 0; j < img.n_cols; j ++){
@@ -354,14 +354,15 @@ void CalculateMean(Image img, float *m){
 	m[2] = m_b;
 //	cout<<m[0]<<" "<<m[1]<<" "<<m[2]<<endl;
 }
-vector <float> ColorFeatures (Image img){
+vector <float> ColorFeatures (Image &img){
 	int sq_size_r = img.n_rows / 8;
 	int sq_size_c = img.n_cols / 8;
 	vector <float> map;
 	float mean_colors[3] = {0,0,0};
 	for (uint i = 0; i < img.n_rows - sq_size_r; i += sq_size_r){
 		for (uint j = 0; j < img.n_cols - sq_size_c; j += sq_size_c){
-			CalculateMean (img.submatrix(i,j, sq_size_r, sq_size_c), mean_colors);
+			Image patch (img.submatrix(i,j, sq_size_r, sq_size_c));
+			CalculateMean (patch, mean_colors);
 			mean_colors[0] /= 255;
 			mean_colors[1] /= 255;
 			mean_colors[2] /= 255;
@@ -382,8 +383,9 @@ void ExtractFeatures(const TDataSet& data_set, TFeatures* features) {
     for (size_t image_idx = 0; image_idx < data_set.size(); ++image_idx) {
 	//	vector <float> color_map = ColorFeatures ( data_set[image_idx].first);
 		Image rgb = BitmapToRgb(data_set[image_idx].first);
-		save_image(rgb, "rgb.bmp");
+		
 		Image resized = Resize(rgb, 32, 64);
+		save_image(rgb, "resized.bmp");
 		vector <float> color_map = ColorFeatures(resized);
         BinImage gray = Grayscale(resized);
         
@@ -415,9 +417,7 @@ void ExtractFeatures(const TDataSet& data_set, TFeatures* features) {
         for (uint i = 0; i < gray.n_rows - sq_size ; i += sq_size){
 			for (uint j = 0; j < gray.n_cols - sq_size; j += sq_size){
 				hist = ComputeHistogram(gradient_direction.submatrix(i,j, sq_size, sq_size), module_gradient.submatrix(i,j,sq_size, sq_size));
-				//lbp_hist = LBP(gray.submatrix(i, j, sq_size, sq_size));
-				//one_image_features.insert(one_image_features.end(), hist.begin(), hist.end());
-				//lbp_hist_full.insert(lbp_hist_full.end(), lbp_hist.begin(), lbp_hist.end());
+			
 				full_hist.insert( full_hist.end(),hist.begin(), hist.end());
 				}
 			//cout<<i<<j<<endl;
@@ -425,17 +425,27 @@ void ExtractFeatures(const TDataSet& data_set, TFeatures* features) {
 			sq_size = 8;
 			  for (uint i = 0; i < gray.n_rows - sq_size ; i += sq_size){
 					for (uint j = 0; j < gray.n_cols - sq_size; j += sq_size){
-						lbp_hist = LBP(gray.submatrix(i, j, sq_size, sq_size));
+						BinImage patch(gray.submatrix(i, j, sq_size, sq_size));
+						lbp_hist = LBP(patch);
 						lbp_hist_full.insert(lbp_hist_full.end(), lbp_hist.begin(), lbp_hist.end());
 					}
 			}
-			cout<<full_hist.size()<<endl;
+		//	cout<<full_hist.size()<<endl;
 			one_image_features.insert(one_image_features.end(), full_hist.begin(), full_hist.end());
 			one_image_features.insert(one_image_features.end(), lbp_hist_full.begin(), lbp_hist_full.end());
 			one_image_features.insert(one_image_features.end(), color_map.begin(), color_map.end());
 			cout<<one_image_features.size()<<endl;
-			
-		
+			int k= 0;
+			for (std::vector<float>::const_iterator i = one_image_features.begin(); i != one_image_features.end(); ++i){
+				if (std::isnan(- *i)){
+					one_image_features[k] =0;
+					
+				}
+				k ++;
+			} 
+			//for (std::vector<float>::const_iterator i = one_image_features.begin(); i != one_image_features.end(); ++i)
+				//	cout<<*i<<" ";
+			cout<<endl;
         features->push_back(make_pair(one_image_features, data_set[image_idx].second));
         // End of sample code
 
